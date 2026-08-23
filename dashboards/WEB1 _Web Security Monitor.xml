@@ -1,0 +1,63 @@
+<dashboard version="1.1">
+  <label>WEB1 - Web Security Monitor</label>
+  <description>Portal traffic, scanner activity, honeypot hits and login flood detection</description>
+  <row>
+    <panel>
+      <title>HTTP Response Code Distribution (24h)</title>
+      <chart>
+        <search>
+          <query>index=cybersteps_web sourcetype="nginx:access" earliest=-7d | rex "\"\s+(?&lt;status&gt;\d{3})\s" | stats count by status | sort -count</query>
+          <earliest>-7d</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">pie</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>Top 10 Source IPs by Request Volume (7d)</title>
+      <chart>
+        <search>
+          <query>index=cybersteps_web sourcetype="nginx:access" earliest=-7d | rex "^(?&lt;src_ip&gt;\d+\.\d+\.\d+\.\d+)" | stats count by src_ip | sort -count | head 10</query>
+          <earliest>-7d</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">bar</option>
+      </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Honeypot Hits - 403 Responses by URL (7d)</title>
+      <table>
+        <search>
+          <query>index=cybersteps_web sourcetype="nginx:access" earliest=-7d | rex "^(?&lt;src_ip&gt;\d+\.\d+\.\d+\.\d+)" | rex "\"(?&lt;method&gt;[A-Z]+)\s(?&lt;url&gt;\S+)" | rex "\"\s+(?&lt;status&gt;\d{3})\s" | search status=403 | stats count by url, src_ip | sort -count</query>
+          <earliest>-7d</earliest>
+          <latest>now</latest>
+        </search>
+      </table>
+    </panel>
+    <panel>
+      <title>Login Endpoint POST Volume Over Time (7d)</title>
+      <chart>
+        <search>
+          <query>index=cybersteps_web sourcetype="nginx:access" earliest=-7d | rex "^(?&lt;src_ip&gt;\d+\.\d+\.\d+\.\d+)" | rex "\"(?&lt;method&gt;[A-Z]+)\s(?&lt;url&gt;\S+)" | search method=POST url="/api/auth/login" | timechart span=1h count by src_ip</query>
+          <earliest>-7d</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">column</option>
+      </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Top User Agents (7d)</title>
+      <table>
+        <search>
+          <query>index=cybersteps_web sourcetype="nginx:access" earliest=-7d | rex "\d{3}\s+\d+\s+\"[^\"]*\"\s+\"(?&lt;useragent&gt;[^\"]+)\"" | stats count by useragent | sort -count | head 10</query>
+          <earliest>-7d</earliest>
+          <latest>now</latest>
+        </search>
+      </table>
+    </panel>
+  </row>
+</dashboard>

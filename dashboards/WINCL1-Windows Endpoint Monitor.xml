@@ -1,0 +1,94 @@
+<dashboard version="1.1">
+  <label>WINC1 - Windows Endpoint Monitor</label>
+  <description>Logon events, brute force patterns, Sysmon process activity and persistence indicators</description>
+  <row>
+    <panel>
+      <title>Failed Logons (4625) - Last 24h</title>
+      <single>
+        <search>
+          <query>index=cybersteps_windows sourcetype="WinEventLog" EventCode=4625 earliest=-24h | stats count</query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+      </single>
+    </panel>
+    <panel>
+      <title>Successful Logons (4624) - Last 24h</title>
+      <single>
+        <search>
+          <query>index=cybersteps_windows sourcetype="WinEventLog" EventCode=4624 earliest=-24h | stats count</query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+      </single>
+    </panel>
+    <panel>
+      <title>Scheduled Tasks Created (4698) - Last 7d</title>
+      <single>
+        <search>
+          <query>index=cybersteps_windows sourcetype="WinEventLog" EventCode=4698 earliest=-7d | stats count</query>
+          <earliest>-7d</earliest>
+          <latest>now</latest>
+        </search>
+      </single>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Failed vs Successful Logons Over Time (7d)</title>
+      <chart>
+        <search>
+          <query>index=cybersteps_windows sourcetype="WinEventLog" (EventCode=4624 OR EventCode=4625) earliest=-7d | eval LogonType=case(EventCode=4624,"Success",EventCode=4625,"Failure") | timechart span=1h count by LogonType</query>
+          <earliest>-7d</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">column</option>
+      </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Top Failed Logon Sources (7d)</title>
+      <table>
+        <search>
+          <query>index=cybersteps_windows sourcetype="WinEventLog" EventCode=4625 earliest=-7d | stats count by Source_Network_Address, Account_Name | sort -count | head 10</query>
+          <earliest>-7d</earliest>
+          <latest>now</latest>
+        </search>
+      </table>
+    </panel>
+    <panel>
+      <title>Top Sysmon EventCodes (7d)</title>
+      <chart>
+        <search>
+          <query>index=cybersteps_windows sourcetype="XmlWinEventLog" source="*Sysmon*" earliest=-7d | stats count by EventCode | sort -count | head 10</query>
+          <earliest>-7d</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">bar</option>
+      </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Process Executions from User-Writable Locations (7d)</title>
+      <table>
+        <search>
+          <query>index=cybersteps_windows sourcetype="XmlWinEventLog" source="*Sysmon*" EventCode=1 earliest=-7d | search Image="*\\Users\\Public\\*" OR Image="*\\Temp\\*" OR Image="*\\AppData\\*" | table _time, Image, CommandLine, ParentImage | sort -_time</query>
+          <earliest>-7d</earliest>
+          <latest>now</latest>
+        </search>
+      </table>
+    </panel>
+    <panel>
+      <title>Scheduled Tasks Created (7d)</title>
+      <table>
+        <search>
+          <query>index=cybersteps_windows sourcetype="WinEventLog" EventCode=4698 earliest=-7d | table _time, Task_Name, Account_Name, Command | sort -_time</query>
+          <earliest>-7d</earliest>
+          <latest>now</latest>
+        </search>
+      </table>
+    </panel>
+  </row>
+</dashboard>
