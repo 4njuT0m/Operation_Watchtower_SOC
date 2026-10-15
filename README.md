@@ -119,7 +119,7 @@ crackmapexec smb 10.10.10.30 -u Administrator -p /tmp/rockyou_custom.txt
 ```
 crackmapexec connected and identified the target correctly (`signing:True`, `SMBv1:False`) but kept hitting `NETBIOS connection timed out` due to the same SMB signing issue. Generated some `STATUS_LOGON_FAILURE` events but unreliably.
 
-Ended up writing a Python impacket script that uses `SMBConnection` directly — impacket handles SMBv3 signing natively, so each attempt hit Windows authentication cleanly. Generated 326 EventCode 4625 events. Detection #2 fired.
+Repeated SMB authentication attempts against Administrator from Kali (NTLM) generated 658 failed-logon events (4625): 88 “bad password”, then 570 “account locked out” — the lockout policy stopped the brute force. To also see a successful logon, I added my own test account anjuT’s password to the list, producing one 4624 (Logon_Type 3). Reproduced with rpcclient and impacket-smbclient. Detection #2 fired on the 4625 volume.
 
 Before any of that worked, two things had to be fixed on WINCL1:
 - Port 445 was filtered by the Windows firewall. Had to enable the SMB-In rule.
