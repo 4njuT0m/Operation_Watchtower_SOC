@@ -103,7 +103,7 @@ Full kill chain from Kali against the lab:
 
 **Reconnaissance** — gobuster directory scan against the portal. 4,615 requests in under 30 seconds. Hit 14 honeypot paths including `/.git/HEAD` and `/.htpasswd`. Detection #1 fired.
 
-**Web credential access** — Hydra sprayed the portal login endpoint with a username wordlist and the password `admin123`. Found 175 valid combinations — the portal had weak default credentials across a lot of accounts. Detection #3 fired.
+**Web credential access** — Web credential access — Hydra flooded the login endpoint (POST /api/auth/login) with a 175-username list and the password admin123. This generated a burst of login POSTs from one IP, which Detection #3 caught. Hydra reported “175 valid”, but that was a false positive: the endpoint returns an identical 204 No Content for every login, so Hydra’s F=incorrect failure condition never matched and it flagged one hit per username (175 = the wordlist length). No credentials were actually compromised — the detection keys on request volume from a single source, not on login success
 
 **Windows credential access** — this one took a few attempts to get working.
 
