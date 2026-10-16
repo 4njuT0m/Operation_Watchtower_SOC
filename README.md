@@ -1,6 +1,6 @@
 # Operation Watchtower
 
-A home lab SOC I built from scratch over two weeks. Started with nothing — no logs, no alerts, no visibility into what was happening on the machines. By the end I had a working Splunk environment collecting logs from a Windows endpoint and a Linux web server, “six detections mapped to MITRE ATT&CK.
+A home lab SOC I built from scratch over two weeks. Started with nothing — no logs, no alerts, no visibility into what was happening on the machines. By the end I had a working Splunk environment collecting logs from a Windows endpoint and a Linux web server, six detections mapped to MITRE ATT&CK.
 
 ---
 
