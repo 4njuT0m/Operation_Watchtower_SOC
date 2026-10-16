@@ -1,6 +1,6 @@
 # Operation Watchtower
 
-A home lab SOC I built from scratch over two weeks. Started with nothing — no logs, no alerts, no visibility into what was happening on the machines. By the end I had a working Splunk environment collecting logs from a Windows endpoint and a Linux web server, five live detections mapped to MITRE ATT&CK, and a full attack campaign I ran myself.
+A home lab SOC I built from scratch over two weeks. Started with nothing — no logs, no alerts, no visibility into what was happening on the machines. By the end I had a working Splunk environment collecting logs from a Windows endpoint and a Linux web server, “six detections mapped to MITRE ATT&CK.
 
 ---
 
@@ -15,7 +15,7 @@ Four VMs on VMware Workstation, all on the same NAT network — `10.10.10.0/24`.
 | WINCL1 | 10.10.10.30 | Windows 11 endpoint with Sysmon installed. Ships event logs via Universal Forwarder |
 | Kali | 10.10.10.40 | Attacker — gobuster, Hydra, crackmapexec, impacket |
 
-WEB1 is a full clone of the SOC-HOST Ubuntu server, renamed and given a separate IP. Kali has a static IP set via NetworkManager because the DHCP lease kept dropping between reboots.
+WEB1 is a full clone of the SOC-HOST Ubuntu server, renamed and given a separate IP. 
 
 Logs flow like this:
 
@@ -72,6 +72,7 @@ Using the full sourcetype returns nothing.
 ## Detections
 
 Five detections, all saved as live Splunk alerts, all tested against real attack traffic.
+update: Six detections mapped to MITRE ATT&CK, tested against real attack traffic. They were built and saved as live alerts during the Splunk Enterprise trial; the lab now runs on Splunk Free (no alerting), so the detections run as searches with the same logic
 
 | # | Name | MITRE | Severity |
 |---|---|---|---|
@@ -80,6 +81,7 @@ Five detections, all saved as live Splunk alerts, all tested against real attack
 | 3 | Web Login Brute Force — Repeated POST to Login Endpoint | T1110.003 | High |
 | 4 | Process Execution from User-Writable Location | T1036.005 | High |
 | 5 | Persistence — Scheduled Task Created | T1053.005 | Critical |
+| 6 | Port Scan — Network Service Discovery | T1046 | Medium |
 
 Full details — SPL queries, thresholds, false positive notes, triage steps — are in `/detections/`.
 
@@ -89,11 +91,11 @@ Full details — SPL queries, thresholds, false positive notes, triage steps —
 
 Three dashboards in Splunk. Dashboard XML files are in `/dashboards/` if you want to import them.
 
-**SOC Health** — pipeline health. Event counts per index, which hosts are reporting, volume over time, sourcetype breakdown. Open this first to check everything is working before you start looking at anything else.
+**SOC Overview** — pipeline health. Event counts per index, which hosts are reporting, volume over time, sourcetype breakdown. Open this first to check everything is working before you start looking at anything else.
 
-**Detection Triage** — active threat visibility on the web portal. Scanner traffic, honeypot hits, login flood patterns, tool user-agents. Gobuster, Hydra and curl all show up by name in the user-agent table.
+**WEB1 — Web Security Monitor** — active threat visibility on the web portal. Scanner traffic, honeypot hits, login flood patterns, tool user-agents. Gobuster, Hydra and curl all show up by name in the user-agent table.
 
-**Investigation** — Windows endpoint deep-dive. Brute force timeline, Sysmon process creation events, executions from user-writable paths, scheduled task creation. For reconstructing what actually happened during an incident.
+**WINCL1 — Windows Endpoint Monitor.** — Windows endpoint deep-dive. Brute force timeline, Sysmon process creation events, executions from user-writable paths, scheduled task creation. For reconstructing what actually happened during an incident.
 
 ---
 
@@ -101,7 +103,7 @@ Three dashboards in Splunk. Dashboard XML files are in `/dashboards/` if you wan
 
 Full kill chain from Kali against the lab:
 
-**Reconnaissance** — gobuster directory scan against the portal. 4,615 requests in under 30 seconds. Hit 14 honeypot paths including `/.git/HEAD` and `/.htpasswd`. Detection #1 fired.
+**Reconnaissance** — gobuster directory scan against the portal. 4,615 requests in under 30 seconds. Hit 34 honeypot paths `/.git/HEAD` and `/.htpasswd`. Detection #1 fired.
 
 **Web credential access** — Hydra flooded the login endpoint (POST /api/auth/login) with a 175-username list and the password admin123. This generated a burst of login POSTs from one IP, which Detection #3 caught. Hydra reported “175 valid”, but that was a false positive: the endpoint returns an identical 204 No Content for every login, so Hydra’s F=incorrect failure condition never matched and it flagged one hit per username (175 = the wordlist length). No credentials were actually compromised — the detection keys on request volume from a single source, not on login success
 
@@ -119,7 +121,7 @@ crackmapexec smb 10.10.10.30 -u Administrator -p /tmp/rockyou_custom.txt
 ```
 crackmapexec connected and identified the target correctly (`signing:True`, `SMBv1:False`) but kept hitting `NETBIOS connection timed out` due to the same SMB signing issue. Generated some `STATUS_LOGON_FAILURE` events but unreliably.
 
-Repeated SMB authentication attempts against Administrator from Kali (NTLM) generated 658 failed-logon events (4625): 88 “bad password”, then 570 “account locked out” — the lockout policy stopped the brute force. To also see a successful logon, I added my own test account anjuT’s password to the list, producing one 4624 (Logon_Type 3). Reproduced with rpcclient and impacket-smbclient. Detection #2 fired on the 4625 volume.
+Repeated SMB authentication attempts against Administrator from Kali (NTLM) generated 233 failed-logon events (4625): 68 “bad password”, then 165 “account locked out” — the lockout policy stopped the brute force. To also see a successful logon, I added a test account’s password to the list, producing one 4624 (Logon_Type 3). Reproduced with rpcclient and impacket-smbclient. Detection #2 fired on the 4625 volume.
 
 Before any of that worked, two things had to be fixed on WINCL1:
 - Port 445 was filtered by the Windows firewall. Had to enable the SMB-In rule.
@@ -129,6 +131,7 @@ Before any of that worked, two things had to be fixed on WINCL1:
 
 **Persistence** — created a scheduled task called `WindowsUpdate` running `C:\Users\Public\update.exe` as SYSTEM at logon. EventCode 4698 recorded the creation. Detection #5 fired.
 
+**Network visibility** — I enabled Windows Filtering Platform auditing on WINCL1 (auditpol: Filtering Platform Connection / Packet Drop → EventCodes 5156/5157/5152, forwarded through the existing Security channel) and ran an nmap port scan from Kali. Detection #6 flags any single source hitting more than 20 distinct destination ports — the scan showed 1,000 ports from 10.10.10.40. WFP auditing is noisy, so I enabled it only for the test and disabled it afterward.
 ---
 
 ## What broke along the way
@@ -139,9 +142,7 @@ Before any of that worked, two things had to be fixed on WINCL1:
 
 **Windows TA sourcetype normalization** — every Sysmon query returned nothing because the sourcetype I'd configured was being silently renamed by the TA during indexing. Took a while to figure out because the events were arriving, just under a different label.
 
-**Windows forwarder install failed** with MSI error 2898/1603. A leftover product registration from a previous failed install made the MSI try to repair instead of doing a fresh install, and the repair path crashed on a UI font rendering issue. Fixed by removing the stale package with `Uninstall-Package` and reinstalling silently with `/qn`.
-
-**Kali couldn't get a stable DHCP lease** after reboots. Set it to a static IP via `nmcli connection modify` instead.
+**Windows forwarder install failed** with MSI error 2898. A leftover product registration from a previous failed install made the MSI try to repair instead of doing a fresh install, and the repair path crashed on a UI font rendering issue. Fixed by removing the stale package with `Uninstall-Package` and reinstalling silently with `/qn`.
 
 **cybersteps_linux and cybersteps_web indexes were missing from the receiver** after running `clean eventdata`. The data had been cleaned but the index config entries were gone. Had to recreate them with `splunk add index`.
 
